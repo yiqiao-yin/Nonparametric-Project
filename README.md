@@ -2,13 +2,15 @@
 
 This github repo presents the final project of nonparametric project offered at Columbia University.
 
-Course info:
+## Course info:
+
 - STATS GR 5222
 - Title: Nonparametric Statistics
 - Instructor: Zhiliang Ying
 - Group II
 
-Member:
+## Member:
+
 - Caihui Xiao cx2225
 - Xiaotong Li xl2788
 - Xiaotong Lin xl2506
