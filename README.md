@@ -31,7 +31,7 @@ people’s annual income.
 We implement Pearson, Spearman, and Kendall Correlation Test. Since their results are very similar, we take Pearson’s correlation test as an example.
 
 <p align="center">
-  <img width="800" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig1.PNG">
+  <img width="500" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig1.PNG">
 </p>
 
 From the result shown in the above graph, blue indicates a positive correlation while orange
@@ -55,7 +55,7 @@ Two-Sample Tests and we do not consider workclass for the Correlation Tests as i
 variable.
 
 <p align="center">
-  <img width="500" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig2.PNG">
+  <img width="800" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig2.PNG">
 </p>
 
 # Conclusion
