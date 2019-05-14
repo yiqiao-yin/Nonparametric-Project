@@ -1,0 +1,1924 @@
+---
+title: "R Notebook for Nonparametric Final Project"
+author: "Group II"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+This project focus on investigation of comparison of nonparametric and parametric algorithms. This project will start with Simluation. This section will introduce three underlying artificial models and create data sets with noisy variables accordingly. In particular, we want to ask how well does a sample distribution approximate the corresponding hypothetical distribution. Moreover, we investigate the question what is association between qualitative variables and quantitative variables. 
+
+Identifying variables that are useful in prediction and in inference are both important in today's statistical learning and practice, especially for current and future big data problems. As data sets grow unwieldy, searching for important and predictive variables, or clusters of variables that are responsible for important trends or patterns, becomes more and more challenging and essential. However, the popular statistical methods that have served us well for many decades, dealing with numerous problems, mahy no longer be adequate for complicated problems arising from current data sets. For example, recent discoveries of significant variants using traditional statistical tests in GWAS studies have not been accompanied with gains in prediction, or to gain better understanding of genetic functions. This phenomenon is pervasive across different types of data and problems, as well as different sample sizes, posing a general question: why don't highly statistically significant variableslead to good predictors nor regressors? This type of basic questions, used to be worked well by familiar methods, requires to give second thoughts and reevaluations.
+
+The purpose of this project is to investigate the performance comparison between non-parametric and parametric classification method. 
+
+ <a href="#top">Back to top</a>
+
+# Main Objectives
+
+We are interested the performance of using non-parametric and parametric methods. Moreover, in which way do they differ from each other?
+
+ <a href="#top">Back to top</a>
+
+## Aritificial Data
+
+This section introduces experimental design. We generate artificial data set from (a) Bernoulli Distribution, (b) Normal Distribution, and (c) random complex distribution. Each artificial data is also defined by number of observations, $n$, and number of parameters, $p$.
+
+ <a href="#top">Back to top</a>
+
+## Simulation: Experiment Design
+
+Each artificial data from (a), (b), to (c) we test the following sequence of algorithms. First, we approach the data directly with common classification method such as Logistic, Random Forest, SVM, and Neural Network. Then we construct features using the same data with non-parametric technique such as Principle Component and K-Means. 
+
+ <a href="#top">Back to top</a>
+
+## Simulation: Results
+
+```{r, warning=FALSE, message=FALSE, error=FALSE}
+# Let us load the sciprt of all defined functions
+path <- "C:/Users/eagle/OneDrive/STATS GR5222 - Nonparametric Statistics/5. Project/"
+source(paste0(path,"scripts/definition_of_functions.R"))
+```
+
+ <a href="#top">Back to top</a>
+
+## Artificial Example 1: Bernoulli
+
+First, let us create an artificial data set with a certain number of observations, $n$, and a certain number of parameters, $p$. That is, we create $X_i \sim \text{Bernoulli}(n,1/2)$.  We define response, $Y$, to be
+$$Y = (X_1 + X_2) (\text{mod} 2)$$
+Hence, the correct prediction rate for this underlying model is 100\%. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+sub.data <- matrix(1L,3,3)
+rownames(sub.data) <- c("50","100","1e3")
+colnames(sub.data) <- c("50","100","1e3")
+cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0,1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Theoretical Rate", cex = 1.5))
+```
+
+By allowing $n$ and $p$ to take values in $[50,100,1000]$, we have 9 artificial data sets with different pairs of $(n,p)$. Each pair of $(n,p)$ we test the following algorithms:
+
+- Directly apply Logistic, Random Forest, SVM, and Neural Network; 
+
+- Use Principle Components to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features;
+
+- Use K-Means to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+# Set up
+n.sim <- 3
+n.range <- c(50, 100, 1e3)
+p.range <- c(50, 100, 1e3)
+PC_Table <- c()
+KMEANS_Table <- c()
+NONE_Table <- c()
+NONE_LOGIT <- array(NA, c(3,3,n.sim))
+NONE_RF <- array(NA, c(3,3,n.sim))
+NONE_SVM <- array(NA, c(3,3,n.sim))
+NONE_NN <- array(NA, c(3,3,n.sim))
+PC_LOGIT <- array(NA, c(3,3,n.sim))
+PC_RF <- array(NA, c(3,3,n.sim))
+PC_SVM <- array(NA, c(3,3,n.sim))
+PC_NN <- array(NA, c(3,3,n.sim))
+K_LOGIT <- array(NA, c(3,3,n.sim))
+K_RF <- array(NA, c(3,3,n.sim))
+K_SVM <- array(NA, c(3,3,n.sim))
+K_NN <- array(NA, c(3,3,n.sim))
+
+# Start Loop
+for (k in 1:n.sim) {
+  for (i in 1:3) {
+    for (j in 1:3) {
+      
+      # Set seed
+      # i <- j <- k <- 1
+      set.seed(2019 + k)
+      n <- n.range[i] + 1000
+      p <- p.range[j]
+      
+      # Create data
+      # Create X's and Y variable for underying model:
+      x <- data.frame(matrix(rbinom(n*p, 1, 0.5), nrow = n))
+      y <- (x$X1 + x$X2) %% 2
+      all <- data.frame(cbind(y,x))
+      
+      # (I) NONPARAMETRIC
+      # PC
+      PC_VS_Result <- PC.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n
+      )
+      
+      # KMEANS
+      KMEANS_VS_Result <- KMEANS.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n,
+        k = 10
+      )
+      
+      # (II) MACHINE LEARNING
+      # NONE + LOGISTIC / RF / SVM / NN
+      Algo_NONE_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_NONE_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_NONE_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_NONE_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: LOGISTIC / RF / SVM / NN
+      NONE_LOGIT[i,j,k] <- Algo_NONE_LOGISTIC$AUC
+      NONE_RF[i,j,k] <- Algo_NONE_RF$AUC
+      NONE_SVM[i,j,k] <- Algo_NONE_SVM$AUC
+      NONE_NN[i,j,k] <- Algo_NONE_NN$Testing.Accuracy
+      NONE_Table <- c(
+        NONE_Table, 
+        Algo_NONE_LOGISTIC$AUC, 
+        Algo_NONE_RF$AUC,
+        Algo_NONE_SVM$AUC,
+        Algo_NONE_NN$Testing.Accuracy)
+      
+      # PC + LOGISTIC / RF / SVM /  NN
+      all <- data.frame(PC_VS_Result$all)
+      Algo_PC_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_PC_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_PC_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_PC_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: PC + LOGISTIC / RF / SVM / NN
+      PC_LOGIT[i,j,k] <- Algo_PC_LOGISTIC$AUC
+      PC_RF[i,j,k] <- Algo_PC_RF$AUC
+      PC_SVM[i,j,k] <- Algo_PC_SVM$AUC
+      PC_NN[i,j,k] <- Algo_PC_NN$Testing.Accuracy
+      PC_Table <- c(
+        PC_Table, 
+        Algo_PC_LOGISTIC$AUC, 
+        Algo_PC_RF$AUC,
+        Algo_PC_SVM$AUC,
+        Algo_PC_NN$Testing.Accuracy)
+      
+      # KMEANS + LOGISTIC / RF / SVM / NN
+      all <- data.frame(KMEANS_VS_Result$all)
+      Algo_KMEANS_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_KMEANS_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_KMEANS_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_KMEANS_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: KEMANS + LOGISTIC / RF / SVM / NN
+      K_LOGIT[i,j,k] <- Algo_KMEANS_LOGISTIC$AUC
+      K_RF[i,j,k] <- Algo_KMEANS_RF$AUC
+      K_SVM[i,j,k] <- Algo_KMEANS_SVM$AUC
+      K_NN[i,j,k] <- Algo_KMEANS_NN$Testing.Accuracy
+      KMEANS_Table <- c(
+        KMEANS_Table,
+        Algo_KMEANS_LOGISTIC$AUC,
+        Algo_KMEANS_RF$AUC,
+        Algo_KMEANS_SVM$AUC,
+        Algo_KMEANS_NN$Testing.Accuracy)
+    }
+  }
+} # End of simulation
+```
+
+ <a href="#top">Back to top</a>
+
+#### Performance Comparison
+
+Last we present the performance for all algorithms using *cloud()* function so that we the following performance visualization.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=18, fig.height=14}
+# Report Performance
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+
+## Design Plot
+# LOGIT
+sub.data <- matrix(NONE_LOGIT,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+N.P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# RF
+sub.data <- matrix(NONE_RF,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+N.P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# SVM
+sub.data <- matrix(NONE_SVM,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+N.P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# NN
+sub.data <- matrix(NONE_NN,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+N.P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# PC+LOGIT
+sub.data <- matrix(PC_LOGIT,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P1
+# PC+RF
+sub.data <- matrix(PC_RF,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+SVM
+sub.data <- matrix(PC_SVM,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+NN
+sub.data <- matrix(PC_NN,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P3
+# K+LOGIT
+sub.data <- matrix(K_LOGIT,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P5 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P4
+# K+RF
+sub.data <- matrix(K_RF,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P6 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P5
+# PC+SVM
+sub.data <- matrix(K_SVM,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P7 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# K+NN
+sub.data <- matrix(K_NN,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+P8 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P6
+# Plot
+grid.arrange(N.P1,N.P2,N.P3,N.P4,
+             P1,P2,P3,P4,
+             P5,P6,P7,P8,
+             nrow = 3)
+```
+
+ <a href="#top">Back to top</a>
+ 
+## Artificial Example 2: Normal
+
+Next, let us create an artificial data set with a certain number of observations, $n$, and a certain number of parameters, $p$. That is, we create $X_i \sim \text{N}(0,1)$.  We define response, $Y$, to be
+$$Y = 1 \text{ if } \sum_{i=1}^{10}X_i > \frac{1}{n}\sum_{i=1}^{10}X_i; Y = 0 \text{ if } \sum_{i=1}^{10}X_i \le \frac{1}{n}\sum_{i=1}^{10}X_i$$
+Hence, the correct prediction rate for this underlying model is 100\%. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+sub.data <- matrix(1L,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0,1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Theoretical Rate", cex = 1.5))
+```
+
+By allowing $n$ and $p$ to take values in $[100,300,1000]$, we have 9 artificial data sets with different pairs of $(n,p)$. Each pair of $(n,p)$ we test the following algorithms:
+
+- Directly apply Logistic, Random Forest, SVM, and Neural Network; 
+
+- Use Principle Components to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features;
+
+- Use K-Means to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+# Set up
+n.sim <- 3
+n.range <- c(50, 100, 1e3)
+p.range <- c(50, 100, 1e3)
+PC_Table <- c()
+KMEANS_Table <- c()
+NONE_Table <- c()
+NONE_LOGIT <- array(NA, c(3,3,n.sim))
+NONE_RF <- array(NA, c(3,3,n.sim))
+NONE_SVM <- array(NA, c(3,3,n.sim))
+NONE_NN <- array(NA, c(3,3,n.sim))
+PC_LOGIT <- array(NA, c(3,3,n.sim))
+PC_RF <- array(NA, c(3,3,n.sim))
+PC_SVM <- array(NA, c(3,3,n.sim))
+PC_NN <- array(NA, c(3,3,n.sim))
+K_LOGIT <- array(NA, c(3,3,n.sim))
+K_RF <- array(NA, c(3,3,n.sim))
+K_SVM <- array(NA, c(3,3,n.sim))
+K_NN <- array(NA, c(3,3,n.sim))
+
+# Start Loop
+for (k in 1:n.sim) {
+  for (i in 1:3) {
+    for (j in 1:3) {
+      
+      # Set seed
+      # i <- j <- k <- 1
+      set.seed(2019 + k)
+      n <- n.range[i] + 1000
+      p <- p.range[j]
+      
+      # Create data
+      # Create X's and Y variable for underying model:
+      x <- data.frame(matrix(rnorm(n*p, mean=0, sd=1), nrow = n))
+      y <- apply(x[,1:10], 1, sum); y_bar <- mean(y)
+      y <- ifelse(y > y_bar, 1, 0)
+      all <- data.frame(cbind(y,x))
+      
+      # (I) NONPARAMETRIC
+      # PC
+      PC_VS_Result <- PC.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n
+      )
+      
+      # KMEANS
+      KMEANS_VS_Result <- KMEANS.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n,
+        k = 10
+      )
+      
+      # (II) MACHINE LEARNING
+      # NONE + LOGISTIC / RF / SVM / NN
+      Algo_NONE_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_NONE_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_NONE_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_NONE_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: LOGISTIC / RF / SVM / NN
+      NONE_LOGIT[i,j,k] <- Algo_NONE_LOGISTIC$AUC
+      NONE_RF[i,j,k] <- Algo_NONE_RF$AUC
+      NONE_SVM[i,j,k] <- Algo_NONE_SVM$AUC
+      NONE_NN[i,j,k] <- Algo_NONE_NN$Testing.Accuracy
+      NONE_Table <- c(
+        NONE_Table, 
+        Algo_NONE_LOGISTIC$AUC, 
+        Algo_NONE_RF$AUC,
+        Algo_NONE_SVM$AUC,
+        Algo_NONE_NN$Testing.Accuracy)
+      
+      # PC + LOGISTIC / RF / SVM /  NN
+      all <- data.frame(PC_VS_Result$all)
+      Algo_PC_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_PC_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_PC_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_PC_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: PC + LOGISTIC / RF / SVM / NN
+      PC_LOGIT[i,j,k] <- Algo_PC_LOGISTIC$AUC
+      PC_RF[i,j,k] <- Algo_PC_RF$AUC
+      PC_SVM[i,j,k] <- Algo_PC_SVM$AUC
+      PC_NN[i,j,k] <- Algo_PC_NN$Testing.Accuracy
+      PC_Table <- c(
+        PC_Table, 
+        Algo_PC_LOGISTIC$AUC, 
+        Algo_PC_RF$AUC,
+        Algo_PC_SVM$AUC,
+        Algo_PC_NN$Testing.Accuracy)
+      
+      # KMEANS + LOGISTIC / RF / SVM / NN
+      all <- data.frame(KMEANS_VS_Result$all)
+      Algo_KMEANS_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_KMEANS_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_KMEANS_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_KMEANS_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: KEMANS + LOGISTIC / RF / SVM / NN
+      K_LOGIT[i,j,k] <- Algo_KMEANS_LOGISTIC$AUC
+      K_RF[i,j,k] <- Algo_KMEANS_RF$AUC
+      K_SVM[i,j,k] <- Algo_KMEANS_SVM$AUC
+      K_NN[i,j,k] <- Algo_KMEANS_NN$Testing.Accuracy
+      KMEANS_Table <- c(
+        KMEANS_Table, 
+        Algo_KMEANS_LOGISTIC$AUC, 
+        Algo_KMEANS_RF$AUC, 
+        Algo_KMEANS_SVM$AUC,
+        Algo_KMEANS_NN$Testing.Accuracy)
+    }
+  }
+} # End of simulation
+```
+
+ <a href="#top">Back to top</a>
+
+#### Performance Comparison
+
+Last we present the performance for all algorithms using *cloud()* function so that we the following performance visualization.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=18, fig.height=14}
+# Report Performance
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+
+## Design Plot
+# LOGIT
+sub.data <- matrix(NONE_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# RF
+sub.data <- matrix(NONE_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# SVM
+sub.data <- matrix(NONE_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# NN
+sub.data <- matrix(NONE_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# PC+LOGIT
+sub.data <- matrix(PC_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P1
+# PC+RF
+sub.data <- matrix(PC_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+SVM
+sub.data <- matrix(PC_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+NN
+sub.data <- matrix(PC_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P3
+# K+LOGIT
+sub.data <- matrix(K_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P5 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P4
+# K+RF
+sub.data <- matrix(K_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P6 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P5
+# PC+SVM
+sub.data <- matrix(K_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P7 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# K+NN
+sub.data <- matrix(K_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P8 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P6
+# Plot
+grid.arrange(N.P1,N.P2,N.P3,N.P4,
+             P1,P2,P3,P4,
+             P5,P6,P7,P8,
+             nrow = 3)
+```
+
+ <a href="#top">Back to top</a>
+ 
+## Artificial Example 3: Complex
+
+Thirdly, let us create an artificial data set with a certain number of observations, $n$, and a certain number of parameters, $p$. That is, we create $X_i \sim \text{N}(0,1)$. We define $T = (\sum_{i=1}^{3}X_i)+X_1*X_2+X_4^2+X_5*X_5*X_7+\exp(X_8)$. Then we define response, $Y$, to be
+$$Y = 1 \text{ if } T > \frac{1}{n} T; Y = 0 \text{ if } T \le \frac{1}{n} T$$
+Hence, the correct prediction rate for this underlying model is 100\%. 
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+sub.data <- matrix(1L,3,3)
+colnames(sub.data) <- c("50","100","1e3")
+rownames(sub.data) <- c("50","100","1e3")
+cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0,1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Theoretical Rate", cex = 1.5))
+```
+
+By allowing $n$ and $p$ to take values in $[100,300,1000]$, we have 9 artificial data sets with different pairs of $(n,p)$. Each pair of $(n,p)$ we test the following algorithms:
+
+- Directly apply Logistic, Random Forest, SVM, and Neural Network; 
+
+- Use Principle Components to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features;
+
+- Use K-Means to construct features and then use Logistic, Random Forest, SVM, and Neural Network on new features.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+# Set up
+n.sim <- 3
+n.range <- c(50, 100, 1e3)
+p.range <- c(50, 100, 1e3)
+PC_Table <- c()
+KMEANS_Table <- c()
+NONE_Table <- c()
+NONE_LOGIT <- array(NA, c(3,3,n.sim))
+NONE_RF <- array(NA, c(3,3,n.sim))
+NONE_SVM <- array(NA, c(3,3,n.sim))
+NONE_NN <- array(NA, c(3,3,n.sim))
+PC_LOGIT <- array(NA, c(3,3,n.sim))
+PC_RF <- array(NA, c(3,3,n.sim))
+PC_SVM <- array(NA, c(3,3,n.sim))
+PC_NN <- array(NA, c(3,3,n.sim))
+K_LOGIT <- array(NA, c(3,3,n.sim))
+K_RF <- array(NA, c(3,3,n.sim))
+K_SVM <- array(NA, c(3,3,n.sim))
+K_NN <- array(NA, c(3,3,n.sim))
+
+# Start Loop
+for (k in 1:n.sim) {
+  for (i in 1:3) {
+    for (j in 1:3) {
+      
+      # Set seed
+      # i <- j <- k <- 1
+      set.seed(2019 + k)
+      n <- n.range[i] + 1000
+      p <- p.range[j]
+      
+      # Create data
+      # Create X's and Y variable for underying model:
+      x <- data.frame(matrix(rnorm(n*p, mean=0, sd=1), nrow = n))
+      y <- x$X1+x$X2+x$X3+x$X1*x$X2+x$X4^2+x$X5*x$X6*x$X7+exp(x$X8); y_bar <- mean(y)
+      y <- ifelse(y > y_bar, 1, 0)
+      all <- data.frame(cbind(y,x))
+      
+      # (I) NONPARAMETRIC
+      # PC
+      PC_VS_Result <- PC.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n
+      )
+      
+      # KMEANS
+      KMEANS_VS_Result <- KMEANS.VS(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n,
+        k = 10
+      )
+      
+      # (II) MACHINE LEARNING
+      # NONE + LOGISTIC / RF / SVM / NN
+      Algo_NONE_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_NONE_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_NONE_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_NONE_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: LOGISTIC / RF / SVM / NN
+      NONE_LOGIT[i,j,k] <- Algo_NONE_LOGISTIC$AUC
+      NONE_RF[i,j,k] <- Algo_NONE_RF$AUC
+      NONE_SVM[i,j,k] <- Algo_NONE_SVM$AUC
+      NONE_NN[i,j,k] <- Algo_NONE_NN$Testing.Accuracy
+      NONE_Table <- c(
+        NONE_Table, 
+        Algo_NONE_LOGISTIC$AUC, 
+        Algo_NONE_RF$AUC,
+        Algo_NONE_SVM$AUC,
+        Algo_NONE_NN$Testing.Accuracy)
+      
+      # PC + LOGISTIC / RF / SVM /  NN
+      all <- data.frame(PC_VS_Result$all)
+      Algo_PC_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_PC_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_PC_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_PC_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: PC + LOGISTIC / RF / SVM / NN
+      PC_LOGIT[i,j,k] <- Algo_PC_LOGISTIC$AUC
+      PC_RF[i,j,k] <- Algo_PC_RF$AUC
+      PC_SVM[i,j,k] <- Algo_PC_SVM$AUC
+      PC_NN[i,j,k] <- Algo_PC_NN$Testing.Accuracy
+      PC_Table <- c(
+        PC_Table, 
+        Algo_PC_LOGISTIC$AUC, 
+        Algo_PC_RF$AUC,
+        Algo_PC_SVM$AUC,
+        Algo_PC_NN$Testing.Accuracy)
+      
+      # KMEANS + LOGISTIC / RF / SVM / NN
+      all <- data.frame(KMEANS_VS_Result$all)
+      Algo_KMEANS_LOGISTIC <- logistic(
+        x = all[, -1],
+        y = all[ 1],
+        cutoff = (n - 1000)/n,
+        fam = binomial,
+        cutoff.coefficient = 1)
+      Algo_KMEANS_RF <- Random.Forest(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n, 
+        num.tree = 10,
+        num.try = sqrt(ncol(all)),
+        cutoff.coefficient = 1,
+        SV.cutoff = 1:10)
+      Algo_KMEANS_SVM <- Support_Vector_Machine(
+        x = all[, -1],
+        y = all[, 1],
+        cutoff = (n - 1000)/n)
+      Algo_KMEANS_NN <- YinsKerasNN::YinsKerasNN(
+        x = all[, -1], 
+        y = all[, 1], 
+        cutoff = (n - 1000)/n, 
+        epochs = 30)
+      
+      # Performance Comparison: KEMANS + LOGISTIC / RF / SVM / NN
+      K_LOGIT[i,j,k] <- Algo_KMEANS_LOGISTIC$AUC
+      K_RF[i,j,k] <- Algo_KMEANS_RF$AUC
+      K_SVM[i,j,k] <- Algo_KMEANS_SVM$AUC
+      K_NN[i,j,k] <- Algo_KMEANS_NN$Testing.Accuracy
+      KMEANS_Table <- c(
+        KMEANS_Table, 
+        Algo_KMEANS_LOGISTIC$AUC, 
+        Algo_KMEANS_RF$AUC, 
+        Algo_KMEANS_SVM$AUC,
+        Algo_KMEANS_NN$Testing.Accuracy)
+    }
+  }
+} # End of simulation
+```
+
+ <a href="#top">Back to top</a>
+
+#### Performance Comparison
+
+Last we present the performance for all algorithms using *cloud()* function so that we the following performance visualization.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=18, fig.height=14}
+# Report Performance
+library(lattice)
+library(latticeExtra)
+library(gridExtra)
+
+## Design Plot
+# LOGIT
+sub.data <- matrix(NONE_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# RF
+sub.data <- matrix(NONE_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# SVM
+sub.data <- matrix(NONE_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# NN
+sub.data <- matrix(NONE_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+N.P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+# PC+LOGIT
+sub.data <- matrix(PC_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P1 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P1
+# PC+RF
+sub.data <- matrix(PC_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P2 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+SVM
+sub.data <- matrix(PC_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P3 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# PC+NN
+sub.data <- matrix(PC_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P4 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "PC + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P3
+# K+LOGIT
+sub.data <- matrix(K_LOGIT,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P5 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Logistic", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P4
+# K+RF
+sub.data <- matrix(K_RF,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P6 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Random Forest", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P5
+# PC+SVM
+sub.data <- matrix(K_SVM,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P7 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + SVM", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P2
+# K+NN
+sub.data <- matrix(K_NN,3,3)
+colnames(sub.data) <- c("100","300","1e3")
+rownames(sub.data) <- c("100","300","1e3")
+P8 <- cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "# of Obs.", cex = 1.2),
+  ylab = list(label = "# of Param.", cex = 1.2),
+  zlab = list(
+    label = "Prediction Rate",
+    cex = 1.2,
+    rot = 90
+  ),
+  cex.axis = 0.7,
+  lwd = 0.5,
+  main = list(label = "KMEANS + Neural Network", cex = 1.5),
+  col.facet = level.colors(
+    sub.data,
+    at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors,
+    colors = TRUE
+  ),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+); #P6
+# Plot
+grid.arrange(N.P1,N.P2,N.P3,N.P4,
+             P1,P2,P3,P4,
+             P5,P6,P7,P8,
+             nrow = 3)
+```
+
+ <a href="#top">Back to top</a>
+
+# Application on Real Data
+
+This section we apply the same experimental design in simulation on real data set. What is the data? What is the attributes? What makes sense? What is the key in this data?
+
+## Income Classification by Census Data
+
+The argument demonstrated in simulation is applicable in real life analysis. This section we apply the experimental procedure on Income Classification Data. The task is to predict if an individual's annual income excceds $50,000 based on census data. The data is collected from United States Census Bureau. The data has approximately 45,000 observations and the following independent variabls:
+
+- age: continuous.
+
+- workclass: Private, Self-emp-not-inc, Self-emp-inc, Federal-gov, Local-gov, State-gov, Without-pay, Never-worked;
+
+- fnlwgt: continuous variable;
+
+- education: Bachelors, Some-college, 11th, HS-grad, Prof-school, Assoc-acdm, Assoc-voc, 9th, 7th-8th, 12th, Masters, 1st-4th, 10th, Doctorate, 5th-6th, Preschool;
+
+- education-num: continuous variable;
+
+- marital-status: Married-civ-spouse, Divorced, Never-married, Separated, Widowed, - Married-spouse-absent, Married-AF-spouse;
+
+- occupation: Tech-support, Craft-repair, Other-service, Sales, Exec-managerial, Prof-specialty, Handlers-cleaners, Machine-op-inspct, Adm-clerical, Farming-fishing, Transport-moving, Priv-house-serv, Protective-serv, Armed-Forces;
+
+- relationship: Wife, Own-child, Husband, Not-in-family, Other-relative, Unmarried;
+
+- race: White, Asian-Pac-Islander, Amer-Indian-Eskimo, Other, Black;
+
+- sex: Female, Male;
+
+- capital-gain: continuous variable;
+
+- capital-loss: continuous variable;
+
+- hours-per-week: continuous variable;
+
+- native-country: United-States, Cambodia, England, Puerto-Rico, Canada, Germany, Outlying-US(Guam-USVI-etc), India, Japan, Greece, South, China, Cuba, Iran, Honduras, Philippines, Italy, Poland, Jamaica, Vietnam, Mexico, Portugal, Ireland, France, Dominican-Republic, Laos, Ecuador, Taiwan, Haiti, Columbia, Hungary, Guatemala, Nicaragua, Scotland, Thailand, Yugoslavia, El-Salvador, Trinadad&Tobago, Peru, Hong, Holand-Netherlands.
+
+The response variable is:
+
+- class: >50K, <=50K (the levels are coded as 0 and 1 while 1 imples the income of an observation is greater than $50k USD)
+
+## Questions
+
+To make inference of use of this data set, we ask the following questions:
+
+- Between high-income and lower-income groups, are their characteristics (i.e. education number) different?
+
+- Is there an association among the predictors?
+
+- Is the interaction effect among the predictors associated with income level? (We use $\alpha = 0.05$ for all hypothesis tests.)
+
+We present some tables using permutation tests. Each possible group of variables we compute p-value. 
+
+## Experimental Design
+
+Since we are given a large amount of observations, we can conduct k-fold cross validation as each fold has sufficient amount of data for us to carry out the analysis. 
+
+Source: 
+
+- [https://www.kaggle.com/wenruliu/adult-income-dataset#adult.csv](Adult Income Data)
+
+- [http://www.cs.toronto.edu/~delve/data/adult/adultDetail.html](Data Details)
+
+ <a href="#top">Back to top</a>
+
+## Results
+
+We present cross validation results and test set performance in the table below.
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, results='hide'}
+# Let us load the sciprt of all defined functions
+path <- "C:/Users/eagle/OneDrive/STATS GR5222 - Nonparametric Statistics/5. Project/"
+data <- read.csv(paste0(path,"data/adult.csv"))
+RESULT <- real_data_application(
+  data = data,
+  how.many.folds = 4)
+```
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, error=FALSE, fig.width=18, fig.height=8}
+# Plot
+sub.data <- matrix(as.numeric(as.character(unlist(RESULT))),4)
+colnames(sub.data) <- colnames(RESULT)
+rownames(sub.data) <- c(as.character(RESULT[,1]))
+sub.data <- sub.data[,-1]
+cloud(
+  sub.data,
+  panel.3d.cloud = panel.3dbars,
+  xbase = 0.8,
+  ybase = 0.8,
+  zlim = c(0.3, 1),
+  scales = list(arrows = FALSE, just = "right"),
+  xlab = list(label = "kth Fold", cex = 1),
+  ylab = list(label = "Algorithms", cex = 1),
+  zlab = list(label = "Prediction Rate", cex = 1.2, rot = 90),
+  cex.axis = 0.7,
+  lwd = 0.9,
+  zoom = 0.6,
+  main = list(label = "Logistic", cex = 1.5),
+  col.facet = level.colors(sub.data, at = do.breaks(range(sub.data), 20),
+    col.regions = cm.colors, colors = TRUE),
+  colorkey = list(col = cm.colors, at = do.breaks(range(sub.data), 20))
+)
+```
+
+We can see that Random Forest performs the best on this data set. We conclude that for this data set it may not be necessary to conduct nonparametric techniques.
+
+ <a href="#top">Back to top</a>
+
+# Conclusion
+
+We conclude that for complex data set with many high-order interactions we may start with nonparametric algorithms. For relatively simple data with a few variables, we see that it may not be necessary to use high-order interactions.
+
+ <a href="#top">Back to top</a>
+
+# Citation
+
+xxx
+
+ <a href="#top">Back to top</a>
+
+# Appendix
+
+xxx
