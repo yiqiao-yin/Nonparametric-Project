@@ -82,5 +82,5 @@ with the same education background, are more likely to
 receive high income.
 
 <p align="center">
-  <img width="300" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig3.PNG">
+  <img width="400" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig3.PNG">
 </p>
