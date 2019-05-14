@@ -55,7 +55,7 @@ Two-Sample Tests and we do not consider workclass for the Correlation Tests as i
 variable.
 
 <p align="center">
-  <img width="800" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig2.PNG">
+  <img width="500" src="https://github.com/yiqiao-yin/Nonparametric-Project/blob/master/figs/fig2.PNG">
 </p>
 
 # Conclusion
